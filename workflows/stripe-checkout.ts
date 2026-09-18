@@ -1,7 +1,7 @@
 // Stripe Checkout, for real, in test mode: N lanes, each a different buyer and
 // scenario, each on its own Solari browser. Every lane is judged by Stripe's
-// API afterwards (a completed or failed Checkout Session with that buyer's
-// email), never by what the agent reports.
+// API afterwards (a completed Checkout Session for that buyer with the right
+// quantity and discount, or a declined payment), never by what the agent reports.
 //
 //   node --env-file=.env workflows/stripe-checkout.ts [lanes=4]
 
@@ -26,14 +26,19 @@ export async function stripe<T = Record<string, any>>(method: "GET" | "POST", pa
 
 /** One product, a price, a promotion code and a payment link, tagged so reruns reuse them. */
 export async function setup(): Promise<{ url: string; linkId: string; promo: string }> {
+  const promo = "SOLARI20";
+  const codes = await stripe<{ data: unknown[] }>("GET", "promotion_codes", { code: promo, active: "true", limit: "1" });
+  if (codes.data.length === 0) {
+    const coupons = await stripe<{ data: any[] }>("GET", "coupons", { limit: "100" });
+    const coupon = coupons.data.find((c) => c.metadata?.demo === "solari-fast" && c.valid)
+      ?? await stripe("POST", "coupons", { percent_off: "20", duration: "once", "metadata[demo]": "solari-fast" });
+    await stripe("POST", "promotion_codes", { "promotion[type]": "coupon", "promotion[coupon]": coupon.id, code: promo });
+  }
   const found = await stripe<{ data: any[] }>("GET", "payment_links", { limit: "50", active: "true" });
   const existing = found.data.find((l) => l.metadata?.demo === "solari-fast-checkout");
-  const promo = "SOLARI20";
   if (existing) return { url: existing.url, linkId: existing.id, promo };
   const product = await stripe("POST", "products", { name: "Solari desk lamp", "metadata[demo]": "solari-fast" });
-  const price = await stripe("POST", "prices", { product: product.id, unit_amount: "4900", currency: "usd" });
-  const coupon = await stripe("POST", "coupons", { percent_off: "20", duration: "once", "metadata[demo]": "solari-fast" });
-  await stripe("POST", "promotion_codes", { coupon: coupon.id, code: promo }).catch(() => undefined);
+  const price = await stripe("POST", "prices", { product: product.id, unit_amount: String(UNIT_CENTS), currency: "usd" });
   const link = await stripe("POST", "payment_links", {
     "line_items[0][price]": price.id, "line_items[0][quantity]": "1",
     "line_items[0][adjustable_quantity][enabled]": "true", "line_items[0][adjustable_quantity][maximum]": "10",
@@ -41,6 +46,8 @@ export async function setup(): Promise<{ url: string; linkId: string; promo: str
   });
   return { url: link.url, linkId: link.id, promo };
 }
+
+const UNIT_CENTS = 4900;
 
 export interface Scenario { name: string; email: string; card: string; expect: "paid" | "declined"; qty?: number; promo?: boolean }
 
@@ -64,11 +71,20 @@ export function goalFor(s: Scenario, promo: string): string {
   return parts.filter(Boolean).join(" ");
 }
 
-/** What Stripe says happened for this buyer on this link. */
-export async function verdict(linkId: string, s: Scenario, since: number): Promise<"paid" | "declined" | "none"> {
+/**
+ * What Stripe says happened for this buyer on this link. "paid" means paid for exactly the
+ * scenario's order: the quantity, and the 20% discount when the promotion code was asked for.
+ * A payment for anything else is "wrong_order".
+ */
+export async function verdict(linkId: string, s: Scenario, since: number): Promise<"paid" | "declined" | "wrong_order" | "none"> {
   const sessions = await stripe<{ data: any[] }>("GET", "checkout/sessions", { payment_link: linkId, limit: "100", "created[gte]": String(since), "expand[]": "data.payment_intent" });
   const mine = sessions.data.filter((x) => x.customer_details?.email === s.email || x.customer_email === s.email);
-  if (mine.some((x) => x.payment_status === "paid")) return "paid";
+  const paid = mine.filter((x) => x.payment_status === "paid");
+  if (paid.length) {
+    const subtotal = UNIT_CENTS * (s.qty ?? 1);
+    const total = s.promo ? Math.round(subtotal * 0.8) : subtotal;
+    return paid.some((x) => x.amount_subtotal === subtotal && x.amount_total === total) ? "paid" : "wrong_order";
+  }
   if (mine.some((x) => x.payment_intent?.last_payment_error)) return "declined";
   // A declined attempt may leave the session open with no email recorded yet; look at its intents.
   const intents = await stripe<{ data: any[] }>("GET", "payment_intents", { limit: "100", "created[gte]": String(since) });
