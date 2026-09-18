@@ -1,0 +1,17 @@
+{
+  "name": "solari-fast-showcase",
+  "private": true,
+  "type": "module",
+  "description": "Long, real workflows on Solari browsers and desktops, raced against Codex (GPT-6 Astra): solari-reflex with Jev against the stock computer-use loop.",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "solari-reflex": "file:../solari-reflex"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  },
+  "engines": { "node": ">=22.18" }
+}
