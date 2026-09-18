@@ -15,15 +15,27 @@ Every lane is judged by the app it worked in (Stripe's API, the saved spreadshee
 |---|---|---|---|
 | [`stripe-checkout`](workflows/stripe-checkout.ts) | Browser (N lanes) | Stripe Checkout, test mode | Stripe API: Checkout Sessions and PaymentIntents per buyer |
 
-## First results
+## Results so far
 
-`stripe-checkout`, one lane (quantity 2, promotion code, card, email, name, ZIP, untick "save my information", pay):
+### `stripe-checkout`: 6 buyers in parallel on real Stripe Checkout (test mode)
 
-| Agent | Stripe says | Steps | Time | Model cost |
-|---|---|---|---|---|
-| solari-reflex (Jev, with Gemini 3.5 Flash for plan and advice, Mercury 2.5 for text) | paid | 24 (21 decided by Jev) | 74 s | $0.017 |
+Each lane is its own Solari browser.
 
-This was driven from Bengaluru against Solari's us-west region, so every call carries a trans-Pacific round trip.
+| Lane | Scenario | Stripe says | Steps (by Jev) | Time | Model cost |
+|---|---|---|---|---|---|
+| visa-2-lamps-promo | quantity 2, promotion code, Visa | paid | 17 (15) | 55.3 s | $0.012 |
+| declined-card | `4000…0002` | declined | 11 (10) | 39.7 s | $0.009 |
+| mastercard-3-lamps | quantity 3, Mastercard | paid | 14 (12) | 48.2 s | $0.013 |
+| insufficient-funds | `4000…9995` | declined | 11 (10) | 37.6 s | $0.008 |
+| amex-promo | promotion code, Amex | paid | 14 (13) | 44.4 s | $0.010 |
+| visa-debit-4-lamps | quantity 4, Visa debit | paid | 14 (11) | 46.3 s | $0.014 |
+
+- **6 of 6 lanes verified by Stripe's API.**
+- **60 s wall clock** for all six.
+- **71 of 81 steps decided by Jev.** The other 10 came from the Advisor, when Jev's confidence was below 0.6.
+- **$0.065 of model spend** in total.
+
+This was driven from Bengaluru against Solari's us-west region. Each lane is recorded as an MP4, with the overlay showing the numbered controls, Jev's pick and its runner-ups.
 
 ## Run
 
