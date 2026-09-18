@@ -50,6 +50,10 @@ Everything below was driven from Bengaluru against Solari's us-west region, on 2
 | Codex + Solari's MCP ([`@solarisdk/mcp`](https://www.npmjs.com/package/@solarisdk/mcp) 0.5.0) | paid $78.40 | 194.9 s | 34 | 0.67 M |
 | Codex + our MCP fork ([hitakshiA/solari-mcp](https://github.com/hitakshiA/solari-mcp)) | paid $78.40 | 135.5 s | 26 | 0.57 M |
 
+**All six checkouts, given to Codex as one job.** One Codex session (stock MCP) got the six scenarios in a single prompt and could open browsers however it liked. It got **6 of 6 right in 460 s (7.7 minutes)**, with 86 tool calls and 1.6 M input tokens. It ran them one after another, and filled forms by running JavaScript in the page for 25 of those calls. solari-reflex runs the same six in about 66 s, one Jev agent per browser.
+
+**Reliability.** Since the strict check, 23 of 24 lanes across four six-lane runs have been verified. The one miss paid for 1 lamp instead of 3. The planner had returned control names ("Quantity dropdown or input") instead of actions, so the quantity step was ticked off without being done. The planner now asks again when a plan leaves out a value the goal names. The two runs since were 12 of 12.
+
 ### `calc-expenses`: 30 card transactions categorised in LibreOffice Calc, on a Solari desktop
 
 ![Jev filling the Category column in LibreOffice Calc, with the overlay](media/calc-expenses.gif)
